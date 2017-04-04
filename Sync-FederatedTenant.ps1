@@ -68,12 +68,12 @@ function Global:Sync-FederatedTenant {
             $UsersToSync | ForEach-Object {
                 $guid = $_.ObjectGUID
                 $immutableID = [System.Convert]::ToBase64String($guid.tobytearray())
-                $_ | Add-Member -MemberType NoteProperty -Name ImmutableId -Value $immutableID
+                $_ | Add-Member -MemberType NoteProperty -Name ImmutableId -Value $immutableID -force -ErrorAction SilentlyContinue
             }
 
             # Add ExistsIn365 property to objects and set to $false
             $UsersToSync | ForEach-Object {
-                $_ | Add-Member -MemberType NoteProperty -Name ExistsIn365 -Value $false
+                $_ | Add-Member -MemberType NoteProperty -Name ExistsIn365 -Value $false -force -ErrorAction SilentlyContinue
             }
             # Change SyncedTo365 value to true for objects that exist in both AD & 365
             $UsersToSync | Where-Object UserPrincipalName -In $Users365.UserPrincipalName | ForEach-Object {
@@ -82,7 +82,7 @@ function Global:Sync-FederatedTenant {
 
             # Add SyncComplete property to objects and set to $false
             $UsersToSync | ForEach-Object {
-                $_ | Add-Member -MemberType NoteProperty -Name SyncComplete -Value $false
+                $_ | Add-Member -MemberType NoteProperty -Name SyncComplete -Value $false -force -ErrorAction SilentlyContinue
             }
             # Change SyncComplete value to true after verifying synced attributes
             $UsersToSync | Where-Object UserPrincipalName -In $Users365.UserPrincipalName | ForEach-Object {
@@ -131,9 +131,9 @@ function Global:Sync-FederatedTenant {
     }
     # Add Federated Domains to objects
     $tenants | ForEach-Object {
-        $_ | Add-Member -MemberType NoteProperty -Name FederatedDomain `
+        $_ | Add-Member -MemberType NoteProperty -Name FederatedDomain  -force -ErrorAction SilentlyContinue `
             -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Name)"
-        $_ | Add-Member -MemberType NoteProperty -Name DomainStatus `
+        $_ | Add-Member -MemberType NoteProperty -Name DomainStatus  -force -ErrorAction SilentlyContinue `
             -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Status)"
     }
 
