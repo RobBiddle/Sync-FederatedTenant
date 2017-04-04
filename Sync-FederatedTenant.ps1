@@ -141,7 +141,6 @@ function Global:Sync-FederatedTenant {
     }Else{
         Write-Error -Message "No -FederatedDomain Specified"
     }
-
     # Sync Stuff
     $federatedTenants | ForEach-Object {
         $currentTenant = $_
