@@ -41,8 +41,8 @@ function Global:Sync-FederatedTenant {
         # Search All Tenants for Federated Domains
         [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$false,ParameterSetName = "Set 1")]
         [Parameter(HelpMessage="Search ALL Partner Tenants for Federated Domains and Sync Related Users")]
-        [Boolean]
-        $AllTenants = $true,
+        [Switch]
+        $AllTenants,
 
         # Sync Users associated with specified Federated Domain only
         [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$false,ParameterSetName = "Set 1")]
@@ -126,16 +126,20 @@ function Global:Sync-FederatedTenant {
     }
     # Add Federated Domains to objects
     $tenants | ForEach-Object {
-        $_ | Add-Member -MemberType NoteProperty `
-        -Name FederatedDomain `
-        -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Name)"
+        $_ | Add-Member -MemberType NoteProperty -Name FederatedDomain `
+            -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Name)"
+        $_ | Add-Member -MemberType NoteProperty -Name DomainStatus `
+            -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Status)"
     }
 
     # Get list of Tenants with Federated Domains
     If($FederatedDomain) {
         $federatedTenants = $tenants | Where-Object FederatedDomain -Like $FederatedDomain 
+    }
+    if ($AllTenants) {
+        $federatedTenants = $tenants | Where-Object FederatedDomain | Where-Object DomainStatus -like 'Verified'
     }Else{
-        $federatedTenants = $tenants | Where-Object FederatedDomain
+        Write-Error -Message "No -FederatedDomain Specified"
     }
 
     # Sync Stuff
