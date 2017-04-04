@@ -114,10 +114,15 @@ function Global:Sync-FederatedTenant {
             Connect-MsolService -Credential $CredentialForOffice365
         }Else{Connect-MsolService}
     }
-
-    # Connect to Active Directory
-    $DomainControllerPSSession = New-PSSession -Name $DomainControllerFQDN -ComputerName $DomainControllerFQDN -Credential $CredentialForActiveDirectory
-    Import-Module ActiveDirectory -PSSession $DomainControllerPSSession -Global
+    # Check for ActiveDirectory Module 
+    if (!(Get-Module ActiveDirectory)) {
+        # Try to import ActiveDirectory
+        if (!(Import-Module ActiveDirectory -ErrorAction SilentlyContinue)) {
+            # Connect to Active Directory to import ActiveDirectory module if needed - This would require DomainAdmin while Success Above does not
+            $DomainControllerPSSession = New-PSSession -Name $DomainControllerFQDN -ComputerName $DomainControllerFQDN -Credential $CredentialForActiveDirectory
+            Import-Module ActiveDirectory -PSSession $DomainControllerPSSession -Global
+        }
+    }
 
     # Get lists of Office365 Tenants
     switch ($PSCmdlet.ParameterSetName) {
