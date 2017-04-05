@@ -136,7 +136,17 @@ function Global:Sync-FederatedTenant {
         $_ | Add-Member -MemberType NoteProperty -Name DomainStatus  -force -ErrorAction SilentlyContinue `
             -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Status)"
     }
-
+    # Attempt to Confirm non-verified Domains
+    $tenants | Where-Object FederatedDomain | Where-Object DomainStatus -NotLike 'Verified' | ForEach-Object {
+        $currentTenant = $_
+        $currentTenantId = $currentTenant.TenantId.GUID
+        $FederatedDomain = $currentTenant.FederatedDomain
+        If(Get-MsolDomainVerificationDns -DomainName $FederatedDomain -TenantId $currentTenantId){
+            $TXTrecordToSet = (Get-MsolDomainVerificationDns -DomainName $FederatedDomain -TenantId $currentTenantId -Mode DnsTxtRecord).Text
+            Write-Output -Message "$($FederatedDomain) TXT Record of $TXTrecordToSet has not been verified, attempting verification now..."
+            Confirm-MsolDomain -TenantId $currentTenantId -DomainName $FederatedDomain -ErrorAction SilentlyContinue
+        }
+    }
     # Get list of Tenants with Federated Domains
     If($FederatedDomain) {
         $federatedTenants = $tenants | Where-Object FederatedDomain -Like $FederatedDomain 
