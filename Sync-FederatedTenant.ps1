@@ -190,7 +190,7 @@ function Global:Sync-FederatedTenant {
                     Set-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName -DisplayName $_.Surname
                 }
                 if($_.immutableID -notlike $currentUser365.immutableID){
-                    Set-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName -DisplayName $_.immutableID
+                    Set-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName -ImmutableId $_.immutableID
                 }
             }
             $UsersToSync = Get-UsersToSync -TenantID $currentTenantId -FederatedDomain $currentTenantFederatedDomain
