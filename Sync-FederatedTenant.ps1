@@ -114,50 +114,63 @@ function Global:Sync-FederatedTenant {
             Connect-MsolService -Credential $CredentialForOffice365
         }Else{Connect-MsolService}
     }
-    # Check for ActiveDirectory Module 
+    # Check for ActiveDirectory Module
     if (!(Get-Module ActiveDirectory)) {
         # Try to import ActiveDirectory
+        Import-Module ActiveDirectory
         if (!(Import-Module ActiveDirectory -ErrorAction SilentlyContinue)) {
             # Connect to Active Directory to import ActiveDirectory module if needed - This would require DomainAdmin while Success Above does not
             $DomainControllerPSSession = New-PSSession -Name $DomainControllerFQDN -ComputerName $DomainControllerFQDN -Credential $CredentialForActiveDirectory
             Import-Module ActiveDirectory -PSSession $DomainControllerPSSession -Global
         }
     }
-
     # Get lists of Office365 Tenants
     switch ($PSCmdlet.ParameterSetName) {
         "Set 1" {$tenants = Get-MsolPartnerContract -All}
         "Set 2" {$tenants = (Get-MsolPartnerContract -All) | Where-Object TenantId -eq $TenantID}
     }
     # Add Federated Domains to objects
+    $tenants | Add-Member -MemberType NoteProperty -Name FederatedDomain  -Value $null
     $tenants | ForEach-Object {
-        $_ | Add-Member -MemberType NoteProperty -Name FederatedDomain  -force -ErrorAction SilentlyContinue `
-            -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Name)"
-        $_ | Add-Member -MemberType NoteProperty -Name DomainStatus  -force -ErrorAction SilentlyContinue `
-            -Value "$((Get-MsolDomain -TenantId $_.TenantId.GUID | Where-Object Authentication -eq Federated).Status)"
-    }
-    # Attempt to Confirm non-verified Domains
-    $tenants | Where-Object FederatedDomain | Where-Object DomainStatus -NotLike 'Verified' | ForEach-Object {
         $currentTenant = $_
         $currentTenantId = $currentTenant.TenantId.GUID
-        $FederatedDomain = $currentTenant.FederatedDomain
-        If(Get-MsolDomainVerificationDns -DomainName $FederatedDomain -TenantId $currentTenantId){
-            $TXTrecordToSet = (Get-MsolDomainVerificationDns -DomainName $FederatedDomain -TenantId $currentTenantId -Mode DnsTxtRecord).Text
-            Write-Output -Message "$($FederatedDomain) TXT Record of $TXTrecordToSet has not been verified, attempting verification now..."
-            Confirm-MsolDomain -TenantId $currentTenantId -DomainName $FederatedDomain -ErrorAction SilentlyContinue
-            if ((Get-MsolDomain -DomainName $FederatedDomain -TenantId $currentTenantId).Status -notlike 'Verified' -and (Get-MsolDomain -DomainName $FederatedDomain -TenantId $currentTenantId).Authentication -like 'Federated') {
-                Set-MsolDomainAuthentication -DomainName $DomainToFederate -TenantId $TenantId -Authentication Managed
-                Confirm-MsolDomain -TenantId $currentTenantId -DomainName $FederatedDomain
-                Set-MsolDomainAuthentication -DomainName $DomainToFederate -TenantId $TenantId -Authentication Federated
+        $DomainList = Get-MsolDomain -TenantId $currentTenantId | Where-Object Authentication -eq Federated
+        $currentFederatedDomains = @()
+        $DomainList | ForEach-Object {
+            $currentDomain = $_
+            $obj = New-Object -TypeName psobject
+            $obj | Add-Member -NotePropertyName Name -NotePropertyValue $currentDomain.Name
+            $obj | Add-Member -NotePropertyName Status -NotePropertyValue $currentDomain.Status
+            $obj | Add-Member -NotePropertyName Authentication -NotePropertyValue $currentDomain.Authentication
+            $currentFederatedDomains += $obj
+        }
+        $currentTenant.FederatedDomain = $currentFederatedDomains
+    }
+    # Attempt to Confirm non-verified Domains
+    $tenants | Where-Object {$_.FederatedDomain.Authentication -like 'Federated' -and $_.FederatedDomain.Status -NotLike 'Verified'} | ForEach-Object {
+        $currentTenant = $_
+        $currentTenantId = $currentTenant.TenantId.GUID
+        $currentDomainList = $currentTenant.FederatedDomain.Name
+        $currentDomainList | ForEach-Object {
+            $currentDomain = $_
+            If(Get-MsolDomainVerificationDns -DomainName $currentDomain -TenantId $currentTenantId){
+                $TXTrecordToSet = (Get-MsolDomainVerificationDns -DomainName $currentDomain -TenantId $currentTenantId -Mode DnsTxtRecord).Text
+                Write-Output -Message "$($currentDomain) TXT Record of $TXTrecordToSet has not been verified, attempting verification now..."
+                Confirm-MsolDomain -TenantId $currentTenantId -DomainName $currentDomain -ErrorAction SilentlyContinue
+                <#  if ((Get-MsolDomain -DomainName $currentDomain -TenantId $currentTenantId).Status -notlike 'Verified' -and (Get-MsolDomain -DomainName $currentDomain -TenantId $currentTenantId).Authentication -like 'Federated') {
+                    Set-MsolDomainAuthentication -DomainName $currentDomain -TenantId $currentTenantId -Authentication Managed
+                    Confirm-MsolDomain -TenantId $currentTenantId -DomainName $currentDomain
+                    Set-MsolDomainAuthentication -DomainName $currentDomain -TenantId $currentTenantId -Authentication Federated
+                }#>
             }
         }
     }
     # Get list of Tenants with Federated Domains
     If($FederatedDomain) {
-        $federatedTenants = $tenants | Where-Object FederatedDomain -Like $FederatedDomain 
+        $federatedTenants = $tenants | Where-Object {$_.FederatedDomain.Name -Like $FederatedDomain}
     }
     if ($AllTenants) {
-        $federatedTenants = $tenants | Where-Object FederatedDomain | Where-Object DomainStatus -like 'Verified'
+        $federatedTenants = $tenants | Where-Object {$_.FederatedDomain.Status -like 'Verified'}
     }Else{
         Write-Error -Message "No -FederatedDomain Specified"
     }
@@ -165,8 +178,10 @@ function Global:Sync-FederatedTenant {
     $federatedTenants | ForEach-Object {
         $currentTenant = $_
         $currentTenantId = $currentTenant.TenantId.GUID
-        $FederatedDomain = $currentTenant.FederatedDomain
-        $FederatedDomain | ForEach-Object {
+        $currentDomainList = $currentTenant.FederatedDomain.Name
+        Write-Output "Starting work on Tenant: $currentTenantId"
+        Write-Output "Tenant has the following Federated Domains: $currentDomainList"
+        $currentDomainList| ForEach-Object {
             $currentTenantFederatedDomain = $_
             $UsersToSync = Get-UsersToSync -TenantID $currentTenantId -FederatedDomain $currentTenantFederatedDomain
             Write-Output "Starting Sync of $currentTenantFederatedDomain"
