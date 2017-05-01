@@ -79,6 +79,9 @@ function Global:Sync-FederatedTenant {
             $UsersToSync | Where-Object UserPrincipalName -In $Users365.UserPrincipalName | ForEach-Object {
                     $_.ExistsIn365 = $true
                 }
+            $UsersToSync | Where-Object ImmutableId -In $Users365.ImmutableId | ForEach-Object {
+                    $_.ExistsIn365 = $true
+                }
 
             # Add SyncComplete property to objects and set to $false
             $UsersToSync | ForEach-Object {
