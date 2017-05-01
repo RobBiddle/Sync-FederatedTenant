@@ -11,7 +11,6 @@
 .EXAMPLE
 #>
 function Global:Sync-FederatedTenant {
-
     [CmdletBinding(DefaultParametersetName="Set 1")]
     [Alias()]
     [OutputType([String])]
@@ -45,8 +44,7 @@ function Global:Sync-FederatedTenant {
         $AllTenants,
 
         # Sync Users associated with specified Federated Domain only
-        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$false,ParameterSetName = "Set 1")]
-        [Parameter(ParameterSetName = "Set 2")]
+        [Parameter(Mandatory=$false,ValueFromPipelineByPropertyName=$false,ParameterSetName = "Set 2")]
         [Parameter(HelpMessage="Sync only users with a UserPrincipalName matching this Federated Domain")]
         [String]
         $FederatedDomain,
@@ -57,7 +55,6 @@ function Global:Sync-FederatedTenant {
         [Parameter(HelpMessage="Sync only Tenant specified by TenantID.  TenantID must be a valid GUID string")]
         [String]
         $TenantID
-
     )
     function Local:Get-UsersToSync ($TenantID, $FederatedDomain) {
             $Users365 = Get-MsolUser -TenantId $TenantID
@@ -203,6 +200,9 @@ function Global:Sync-FederatedTenant {
             # Sync attributes for Users that are not fully synced
             $UsersToSync | Where-Object ExistsIn365 -eq $true | Where-Object SyncComplete -eq $false | ForEach-Object {
                 $currentUser365 = Get-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName
+                if(!($currentUser365)){
+                    $currentUser365 = Get-MsolUser -TenantId $currentTenantId | Where-Object ImmutableId -Match $_.ImmutableId
+                }
                 if($_.DisplayName -notlike $currentUser365.DisplayName){
                     Set-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName -DisplayName $_.DisplayName
                 }
