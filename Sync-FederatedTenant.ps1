@@ -166,14 +166,16 @@ function Global:Sync-FederatedTenant {
         }
     }
     # Get list of Tenants with Federated Domains
-    If($FederatedDomain) {
+    If ($FederatedDomain) {
         $federatedTenants = $tenants | Where-Object {$_.FederatedDomain.Name -Like $FederatedDomain}
     }
-    if ($AllTenants) {
+    elseif ($AllTenants) {
         $federatedTenants = $tenants | Where-Object {$_.FederatedDomain.Status -like 'Verified'}
-    }Else{
-        Write-Error -Message "No -FederatedDomain Specified"
     }
+    else {
+        Write-Error -Message "Either -FederatedDomain or -AllTenants MUST be Specified"
+    }
+
     # Sync Stuff
     $federatedTenants | ForEach-Object {
         $currentTenant = $_
@@ -189,7 +191,7 @@ function Global:Sync-FederatedTenant {
             # Create New Office365 Users for each user that has not been synced
             $UsersToSync | Where-Object ExistsIn365 -eq $false | ForEach-Object {
                 $password = [System.Web.Security.Membership]::GeneratePassword(16,0)
-                New-MsolUser -TenantId $currentTenant.TenantId.GUID `
+                New-MsolUser -TenantId $currentTenantId `
                     -UserPrincipalName "$($_.UserPrincipalName)" `
                     -DisplayName "$($_.DisplayName)" `
                     -FirstName "$($_.GivenName)" `
@@ -199,9 +201,9 @@ function Global:Sync-FederatedTenant {
             }
             # Sync attributes for Users that are not fully synced
             $UsersToSync | Where-Object ExistsIn365 -eq $true | Where-Object SyncComplete -eq $false | ForEach-Object {
-                $currentUser365 = Get-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName
+                $currentUser365 = $null; $currentUser365 = Get-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName -ErrorAction SilentlyContinue
                 if(!($currentUser365)){
-                    $currentUser365 = Get-MsolUser -TenantId $currentTenantId | Where-Object ImmutableId -Match $_.ImmutableId
+                    $currentUser365 = Get-MsolUser -TenantId $currentTenantId -ErrorAction SilentlyContinue | Where-Object ImmutableId -Match $_.ImmutableId
                 }
                 if($_.DisplayName -notlike $currentUser365.DisplayName){
                     Set-MsolUser -TenantId $currentTenantId -UserPrincipalName $_.UserPrincipalName -DisplayName $_.DisplayName
