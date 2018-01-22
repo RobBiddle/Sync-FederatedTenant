@@ -59,7 +59,7 @@ function Global:Sync-FederatedTenant {
     function Local:Get-UsersToSync ($TenantID, $FederatedDomain) {
             $Users365 = Get-MsolUser -TenantId $TenantID
             $filter = "userPrincipalName -like `"*$($FederatedDomain)`""
-            $UsersAD =  Get-ADUser -Properties * -Filter $filter
+            $UsersAD =  Get-ADUser -Properties * -Filter $filter -Server $DomainControllerFQDN
             $UsersToSync = $UsersAD
             # Add immutableID property to objects and populate values
             $UsersToSync | ForEach-Object {
